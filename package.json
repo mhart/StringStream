@@ -1,7 +1,7 @@
 {
   "name": "stringstream",
-  "version": "0.0.0",
-  "description": "Encode and decode data streams into string streams",
+  "version": "0.0.1",
+  "description": "Encode and decode streams into string streams",
   "main": "stringstream.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
