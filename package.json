@@ -1,0 +1,15 @@
+{
+  "name": "stringstream",
+  "version": "0.0.0",
+  "description": "Encode and decode data streams into string streams",
+  "main": "stringstream.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "homepage": "https://github.com/mhart/StringStream",
+  "repository": {
+    "url": "https://github.com/mhart/StringStream.git"
+  },
+  "author": "Michael Hart <michael.hart.au@gmail.com> http://twitter.com/hichaelmart",
+  "license": "BSD"
+}
