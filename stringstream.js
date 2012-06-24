@@ -11,8 +11,8 @@ function StringStream(from, to) {
 
   from = from || 'utf8'
 
-  this.readable = true
-  this.writable = true
+  this.readable = this.writable = true
+  this.paused = false
   this.toEncoding = (typeof to === 'undefined' ? from : to)
   this.fromEncoding = (typeof to === 'undefined' ? '' : from)
   this.decoder = new AlignedStringDecoder(this.toEncoding)
@@ -26,14 +26,36 @@ StringStream.prototype.write = function(data) {
   }
   var string = this.decoder.write(data)
   if (string.length) this.emit('data', string)
+  return !this.paused
+}
+
+StringStream.prototype.flush = function() {
+  var string = this.decoder.flush()
+  if (string.length) this.emit('data', string)
 }
 
 StringStream.prototype.end = function() {
-  var string = this.decoder.flush()
-  if (string.length) this.emit('data', string)
+  if (!this.writable && !this.readable) return
+  this.flush()
   this.emit('end')
+  this.writable = this.readable = false
+  this.destroy()
 }
 
+StringStream.prototype.destroy = function() {
+  this.decoder = null
+  this.writable = this.readable = false
+  this.emit('close')
+}
+
+StringStream.prototype.pause = function() {
+  this.paused = true
+}
+
+StringStream.prototype.resume = function () {
+  if (this.paused) this.emit('drain')
+  this.paused = false
+}
 
 function AlignedStringDecoder(encoding) {
   StringDecoder.call(this, encoding)
