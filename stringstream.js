@@ -3,6 +3,7 @@ var Stream = require('stream')
 var StringDecoder = require('string_decoder').StringDecoder
 
 module.exports = StringStream
+module.exports.AlignedStringDecoder = AlignedStringDecoder
 
 function StringStream(from, to) {
   if (!(this instanceof StringStream)) return new StringStream(from, to)
@@ -20,6 +21,12 @@ function StringStream(from, to) {
 util.inherits(StringStream, Stream)
 
 StringStream.prototype.write = function(data) {
+  if (!this.writable) {
+    var err = new Error('stream not writable')
+    err.code = 'EPIPE'
+    this.emit('error', err)
+    return false
+  }
   if (this.fromEncoding) {
     if (Buffer.isBuffer(data)) data = data.toString()
     data = new Buffer(data, this.fromEncoding)
@@ -30,8 +37,10 @@ StringStream.prototype.write = function(data) {
 }
 
 StringStream.prototype.flush = function() {
-  var string = this.decoder.flush()
-  if (string.length) this.emit('data', string)
+  if (this.decoder.flush) {
+    var string = this.decoder.flush()
+    if (string.length) this.emit('data', string)
+  }
 }
 
 StringStream.prototype.end = function() {
@@ -71,11 +80,10 @@ function AlignedStringDecoder(encoding) {
 util.inherits(AlignedStringDecoder, StringDecoder)
 
 AlignedStringDecoder.prototype.flush = function() {
-  if (this.alignedBuffer && this.alignedBytes) {
-    return this.alignedBuffer.toString(this.encoding, 0, this.alignedBytes)
-  } else {
-    return ''
-  }
+  if (!this.alignedBuffer || !this.alignedBytes) return ''
+  var leftover = this.alignedBuffer.toString(this.encoding, 0, this.alignedBytes)
+  this.alignedBytes = 0
+  return leftover
 }
 
 function alignedWrite(buffer) {

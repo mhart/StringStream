@@ -1,6 +1,6 @@
 {
   "name": "stringstream",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "description": "Encode and decode streams into string streams",
   "main": "stringstream.js",
   "scripts": {
