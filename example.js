@@ -7,7 +7,6 @@ var utf8Stream = fs.createReadStream('massiveLogFile.gz')
   .pipe(strs('utf8'))
 
 utf8Stream.pipe(process.stdout)
-process.stdout.resume()
 
 // Stream from utf8 to hex to base64... Why not, ay.
 var hex64Stream = fs.createReadStream('myFile')
