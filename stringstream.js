@@ -10,12 +10,12 @@ function StringStream(from, to) {
 
   Stream.call(this)
 
-  from = from || 'utf8'
+  if (from == null) from = 'utf8'
 
   this.readable = this.writable = true
   this.paused = false
-  this.toEncoding = (typeof to === 'undefined' ? from : to)
-  this.fromEncoding = (typeof to === 'undefined' ? '' : from)
+  this.toEncoding = (to == null ? from : to)
+  this.fromEncoding = (to == null ? '' : from)
   this.decoder = new AlignedStringDecoder(this.toEncoding)
 }
 util.inherits(StringStream, Stream)
