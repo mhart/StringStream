@@ -16,7 +16,7 @@ function StringStream(from, to) {
   this.paused = false
   this.toEncoding = (to == null ? from : to)
   this.fromEncoding = (to == null ? '' : from)
-  this.decoder = new AlignedStringDecoder(this.toEncoding)
+  this.decoder = new AlignedStringDecoder(this.fromEncoding, this.toEncoding)
 }
 util.inherits(StringStream, Stream)
 
@@ -29,7 +29,7 @@ StringStream.prototype.write = function(data) {
   }
   if (this.fromEncoding) {
     if (Buffer.isBuffer(data)) data = data.toString()
-    data = new Buffer(data, this.fromEncoding)
+    data = new Buffer(data, this.fromEncoding)    
   }
   var string = this.decoder.write(data)
   if (string.length) this.emit('data', string)
@@ -37,7 +37,7 @@ StringStream.prototype.write = function(data) {
 }
 
 StringStream.prototype.flush = function() {
-  if (this.decoder.flush) {
+  if (this.decoder.flush) {    
     var string = this.decoder.flush()
     if (string.length) this.emit('data', string)
   }
@@ -66,37 +66,84 @@ StringStream.prototype.resume = function () {
   this.paused = false
 }
 
-function AlignedStringDecoder(encoding) {
-  StringDecoder.call(this, encoding)
+function AlignedStringDecoder(fromEncoding, toEncoding) {
+  StringDecoder.call(this, toEncoding)
 
-  switch (this.encoding) {
+  this.fromEncoding = fromEncoding
+  this.toEncoding = toEncoding
+
+  switch (this.fromEncoding) {
+    case 'base64':
+      this.fromRemainBuffer = new Buffer(6)
+      this.fromRemainBytes = 0
+      break
+  }
+
+  switch (this.toEncoding) {
     case 'base64':
       this.write = alignedWrite
-      this.alignedBuffer = new Buffer(3)
-      this.alignedBytes = 0
+      this.toRemainBuffer = new Buffer(3)
+      this.toRemainBytes = 0
       break
   }
 }
 util.inherits(AlignedStringDecoder, StringDecoder)
 
 AlignedStringDecoder.prototype.flush = function() {
-  if (!this.alignedBuffer || !this.alignedBytes) return ''
-  var leftover = this.alignedBuffer.toString(this.encoding, 0, this.alignedBytes)
-  this.alignedBytes = 0
-  return leftover
+
+  if (this.toEncoding === 'base64') {
+    if (!this.toRemainBytes) return ''
+    var leftover = this.toRemainBuffer.toString(this.toEncoding, 0, this.toRemainBytes)
+    this.toRemainBytes = 0
+    return leftover
+  } else
+    return ''
 }
 
 function alignedWrite(buffer) {
-  var rem = (this.alignedBytes + buffer.length) % this.alignedBuffer.length
-  if (!rem && !this.alignedBytes) return buffer.toString(this.encoding)
 
-  var returnBuffer = new Buffer(this.alignedBytes + buffer.length - rem)
+  var newFromRemainBytes, newToRemainBytes, data, length
 
-  this.alignedBuffer.copy(returnBuffer, 0, 0, this.alignedBytes)
-  buffer.copy(returnBuffer, this.alignedBytes, 0, buffer.length - rem)
+  if (this.fromEncoding === 'base64') {
+    newFromRemainBytes = (this.fromRemainBytes + buffer.length) % this.fromRemainBuffer.length
+    
+    length = this.fromRemainBytes + buffer.length - newFromRemainBytes
+    data = new Buffer(length)
+      
+    if (this.fromRemainBytes) {
+      this.fromRemainBuffer.copy(data, 0, 0, this.fromRemainBytes)
+      buffer.copy(data, this.fromRemainBytes, 0, length - this.fromRemainBytes)
+    } else {
+      buffer.copy(data, 0, 0, length)
+    }
 
-  buffer.copy(this.alignedBuffer, 0, buffer.length - rem, buffer.length)
-  this.alignedBytes = rem
+    if (newFromRemainBytes)
+      buffer.copy(this.fromRemainBuffer, 0, length - this.fromRemainBytes)
 
-  return returnBuffer.toString(this.encoding)
+    this.fromRemainBytes = newFromRemainBytes      
+  }
+  else
+    data = buffer
+
+  if (this.toEncoding === 'base64') {
+    newToRemainBytes = (this.toRemainBytes + data.length) % this.toRemainBuffer.length
+    
+    if (!newToRemainBytes && !this.toRemainBytes)
+      return data.toString(this.toEncoding)
+
+    length = this.toRemainBytes + data.length - newToRemainBytes
+    var returnBuffer = new Buffer(length)
+
+    this.toRemainBuffer.copy(returnBuffer, 0, 0, this.toRemainBytes)
+    data.copy(returnBuffer, this.toRemainBytes, 0, length - this.toRemainBytes)
+
+    if (newToRemainBytes)
+      data.copy(this.toRemainBuffer, 0, length - this.toRemainBytes)
+
+    this.toRemainBytes = newToRemainBytes
+
+    return returnBuffer.toString(this.toEncoding)
+  }
+  else
+    return data.toString(this.toEncoding)
 }
