@@ -10,6 +10,11 @@
     "base64",
     "gzip"
   ],
+  "dependencies": {
+    "stream":"~0.0.2",
+    "util": "~0.10.3",
+    "string_decoder": "~0.10.31"
+  },
   "repository": {
     "type": "git",
     "url": "https://github.com/mhart/StringStream.git"
