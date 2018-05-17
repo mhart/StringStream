@@ -27,6 +27,9 @@ StringStream.prototype.write = function(data) {
     this.emit('error', err)
     return false
   }
+  if (typeof data !== 'string') {
+    throw new TypeError('"data" argument must be a string')
+  }
   if (this.fromEncoding) {
     if (Buffer.isBuffer(data)) data = data.toString()
     data = new Buffer(data, this.fromEncoding)
