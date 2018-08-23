@@ -1,102 +1,54 @@
-var util = require('util')
-var Stream = require('stream')
-var StringDecoder = require('string_decoder').StringDecoder
+'use strict'
+
+const util = require('util')
+const Transform = require('stream').Transform
 
 module.exports = StringStream
-module.exports.AlignedStringDecoder = AlignedStringDecoder
 
-function StringStream(from, to) {
-  if (!(this instanceof StringStream)) return new StringStream(from, to)
-
-  Stream.call(this)
-
-  if (from == null) from = 'utf8'
-
-  this.readable = this.writable = true
-  this.paused = false
-  this.toEncoding = (to == null ? from : to)
-  this.fromEncoding = (to == null ? '' : from)
-  this.decoder = new AlignedStringDecoder(this.toEncoding)
+const CHAR_ALIGN = {
+  'hex': 2,
+  'base64': 4,
 }
-util.inherits(StringStream, Stream)
 
-StringStream.prototype.write = function(data) {
-  if (!this.writable) {
-    var err = new Error('stream not writable')
-    err.code = 'EPIPE'
-    this.emit('error', err)
-    return false
+function StringStream(from, to, options) {
+  if (!(this instanceof StringStream)) return new StringStream(from, to, options)
+
+  Transform.call(this, options)
+
+  if (typeof to !== 'string') {
+    options = to
+    to = from || 'utf8'
+    from = null
   }
-  if (this.fromEncoding) {
-    if (Buffer.isBuffer(data) || typeof data === 'number') data = data.toString()
-    data = new Buffer(data, this.fromEncoding)
+  this.setEncoding(to)
+  this.fromEncoding = from
+  this.fromBuffer = ''
+  this.fromAlign = CHAR_ALIGN[this.fromEncoding]
+}
+util.inherits(StringStream, Transform)
+
+StringStream.prototype._transform = function(chunk, encoding, cb) {
+  if (!this.fromEncoding) {
+    return cb(null, chunk)
   }
-  var string = this.decoder.write(data)
-  if (string.length) this.emit('data', string)
-  return !this.paused
-}
-
-StringStream.prototype.flush = function() {
-  if (this.decoder.flush) {
-    var string = this.decoder.flush()
-    if (string.length) this.emit('data', string)
+  let str = '' + chunk
+  if (!this.fromAlign) {
+    return cb(null, Buffer.from(str, this.fromEncoding))
   }
-}
-
-StringStream.prototype.end = function() {
-  if (!this.writable && !this.readable) return
-  this.flush()
-  this.emit('end')
-  this.writable = this.readable = false
-  this.destroy()
-}
-
-StringStream.prototype.destroy = function() {
-  this.decoder = null
-  this.writable = this.readable = false
-  this.emit('close')
-}
-
-StringStream.prototype.pause = function() {
-  this.paused = true
-}
-
-StringStream.prototype.resume = function () {
-  if (this.paused) this.emit('drain')
-  this.paused = false
-}
-
-function AlignedStringDecoder(encoding) {
-  StringDecoder.call(this, encoding)
-
-  switch (this.encoding) {
-    case 'base64':
-      this.write = alignedWrite
-      this.alignedBuffer = new Buffer(3)
-      this.alignedBytes = 0
-      break
+  this.fromBuffer += str
+  if (this.fromBuffer.length < this.fromAlign) {
+    return cb()
   }
-}
-util.inherits(AlignedStringDecoder, StringDecoder)
-
-AlignedStringDecoder.prototype.flush = function() {
-  if (!this.alignedBuffer || !this.alignedBytes) return ''
-  var leftover = this.alignedBuffer.toString(this.encoding, 0, this.alignedBytes)
-  this.alignedBytes = 0
-  return leftover
+  const len = this.fromBuffer.length - (this.fromBuffer.length % this.fromAlign)
+  str = this.fromBuffer.slice(0, len)
+  this.fromBuffer = this.fromBuffer.slice(len)
+  cb(null, Buffer.from(str, this.fromEncoding))
 }
 
-function alignedWrite(buffer) {
-  var rem = (this.alignedBytes + buffer.length) % this.alignedBuffer.length
-  if (!rem && !this.alignedBytes) return buffer.toString(this.encoding)
-
-  var returnBuffer = new Buffer(this.alignedBytes + buffer.length - rem)
-
-  this.alignedBuffer.copy(returnBuffer, 0, 0, this.alignedBytes)
-  buffer.copy(returnBuffer, this.alignedBytes, 0, buffer.length - rem)
-
-  buffer.copy(this.alignedBuffer, 0, buffer.length - rem, buffer.length)
-  this.alignedBytes = rem
-
-  return returnBuffer.toString(this.encoding)
+StringStream.prototype._flush = function(cb) {
+  if (this.fromBuffer) {
+    const str = Buffer.from(this.fromBuffer, this.fromEncoding)
+    str && this.push(str)
+  }
+  cb() // Can only supply data to callback from Node.js v7.0 onwards
 }
