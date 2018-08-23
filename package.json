@@ -1,6 +1,6 @@
 {
   "name": "stringstream",
-  "version": "0.0.6",
+  "version": "1.0.0",
   "description": "Encode and decode streams into string streams",
   "repository": "mhart/StringStream",
   "author": "Michael Hart <michael.hart.au@gmail.com>",
